@@ -5,11 +5,44 @@
 #' [broom::tidy][broom::tidy].
 #'
 #' @param model A fitted model
+#' @param intercept How should the intercept be displayed? Default is \code{"alpha"},
+#'   but can also accept \code{"beta"}, in which case the it will be displayed
+#'   as beta zero.
+#' @param greek What notation should be used for
+#'   coefficients? Currently only accepts \code{"beta"} (with plans for future
+#'   development). Can be used in combination with \code{raw_tex} to use any
+#'   notation, e.g., \code{"\\hat{\\beta}"}.
+#' @param raw_tex Logical. Is the greek code being passed to denote coefficients
+#' raw tex code?
 #' @param ital_vars Logical, defaults to \code{FALSE}. Should the variable names
-#'   not be wrapped in the \code{\\text{}} command?
+#'   not be wrapped in the \code{\\operatorname{}} command?
+#' @param show_distribution Logical. When fitting a logistic or probit
+#'   regression, should the binomial distribution be displayed? Defaults to
+#'   \code{FALSE}.
+#' @param wrap Logical, defaults to \code{FALSE}. Should the terms on the
+#'   right-hand side of the equation be split into multiple lines? This is
+#'   helpful with models with many terms.
+#' @param terms_per_line Integer, defaults to 4. The number of right-hand side
+#'   terms to include per line. Used only when \code{wrap} is \code{TRUE}.
+#' @param operator_location Character, one of \dQuote{end} (the default) or
+#'   \dQuote{start}. When terms are split across multiple lines, they are split
+#'   at mathematical operators like `+`. If set to \dQuote{end}, each line will
+#'   end with a trailing operator (`+` or `-`). If set to \dQuote{start}, each
+#'   line will begin with an operator.
+#' @param align_env TeX environment to wrap around equation. Must be one of
+#'   \code{aligned}, \code{aligned*}, \code{align}, or \code{align*}. Defaults
+#'   to \code{aligned}.
 #' @param use_coefs Logical, defaults to \code{FALSE}. Should the actual model
 #'   estimates be included in the equation instead of math symbols?
+#' @param coef_digits Integer, defaults to 2. The number of decimal places to
+#'   round to when displaying model estimates.
+#' @param fix_signs Logical, defaults to \code{FALSE}. If disabled,
+#'   coefficient estimates that are negative are preceded with a "+" (e.g.
+#'   `5(x) + -3(z)`). If enabled, the "+ -" is replaced with a "-" (e.g.
+#'   `5(x) - 3(z)`).
 #' @export
+#'
+#' @return A character of class \dQuote{equation}.
 #'
 #' @examples
 #' # Simple model
@@ -21,7 +54,8 @@
 #' extract_eq(mod2)
 #'
 #' # Works for categorical variables too, putting levels as subscripts
-#' mod3 <- lm(Sepal.Length ~ Sepal.Width + Species, iris)
+#' library(palmerpenguins)
+#' mod3 <- lm(body_mass_g ~ bill_length_mm + species, penguins)
 #' extract_eq(mod3)
 #'
 #' set.seed(8675309)
@@ -33,20 +67,20 @@
 #' mod4 <- lm(out ~ ., d)
 #' extract_eq(mod4)
 #'
-#' # Preview the equation
-#' preview(extract_eq(mod4))
-#'
 #' # Don't italicize terms
 #' extract_eq(mod1, ital_vars = FALSE)
 #'
 #' # Wrap equations in an "aligned" environment
-#' print(extract_eq(mod2),template='aligned')
+#' extract_eq(mod2, wrap = TRUE)
 #'
 #' # Wider equation wrapping
-#' print(extract_eq(mod2),template='aligned',width = 150)
+#' extract_eq(mod2, wrap = TRUE, terms_per_line = 4)
 #'
 #' # Include model estimates instead of Greek letters
-#' extract_eq(mod2, use_coefs = TRUE)
+#' extract_eq(mod2, wrap = TRUE, terms_per_line = 2, use_coefs = TRUE)
+#'
+#' # Don't fix doubled-up "+ -" signs
+#' extract_eq(mod2, wrap = TRUE, terms_per_line = 4, use_coefs = TRUE, fix_signs = FALSE)
 #'
 #' # Use other model types, like glm
 #' set.seed(8675309)
@@ -56,229 +90,89 @@
 #'                 cont1 = rnorm(300, 100, 1),
 #'                 cont2 = rnorm(300, 50, 5))
 #' mod5 <- glm(out ~ ., data = d, family = binomial(link = "logit"))
-#'
-#' print(extract_eq(mod5),wrap = 120)
-#'
-extract_eq <- function(model, ital_vars = FALSE, use_coefs = FALSE) {
+#' extract_eq(mod5, wrap = TRUE)
 
-  lhs <- extract_lhs(model)
+extract_eq <- function(model, intercept = "alpha", greek = "beta",
+                       raw_tex = FALSE, ital_vars = FALSE,
+                       show_distribution = FALSE,
+                       wrap = FALSE, terms_per_line = 4,
+                       operator_location = "end", align_env = "aligned",
+                       use_coefs = FALSE, coef_digits = 2, fix_signs = TRUE) {
+
+  lhs <- extract_lhs(model, ital_vars, show_distribution)
   rhs <- extract_rhs(model)
 
-  eq <- build_tex(lhs, rhs, ital_vars, use_coefs)
+  eq_raw <- create_eq(lhs,
+                      rhs,
+                      ital_vars,
+                      use_coefs,
+                      coef_digits,
+                      fix_signs,
+                      model,
+                      intercept,
+                      greek,
+                      raw_tex)
 
-  return(eq)
+  if (wrap) {
+    if (operator_location == "start") {
+      line_end <- "\\\\\n&\\quad + "
+    } else {
+      line_end <- "\\ + \\\\\n&\\quad "
+    }
 
-}
-
-
-#' Extract left-hand side
-#'
-#' Extract a string of the outcome/dependent/y variable of a model
-#'
-#' @keywords internal
-#'
-#' @param model A fitted model
-#'
-#' @return A character string
-#'
-extract_lhs <- function(model) {
-  lhs <- all.vars(formula(model))[1]
-
-  return(lhs)
-}
-
-
-#' Extract right-hand side
-#'
-#' Extract a nested list of the explanatory/independent/x variables of a model
-#'
-#' @keywords internal
-#'
-#' @param model A fitted model
-#'
-#' @return A list with one element per future equation term. Term components
-#'   like subscripts are nested inside each list element. List elements with two
-#'   or more terms are interactions.
-#'
-#' @examples \dontrun{
-#' mod1 <- lm(Sepal.Length ~ Sepal.Width + Species * Petal.Length, iris)
-#'
-#' str(extract_rhs(mod1))
-#' #>List of 7
-#' #> $ (Intercept)                   :List of 1
-#' #>  ..$ :List of 2
-#' #>  .. ..$ term    : chr "(Intercept)"
-#' #>  .. ..$ estimate: num 2.93
-#' #> $ Sepal.Width                   :List of 1
-#' #>  ..$ :List of 2
-#' #>  .. ..$ term    : chr "Sepal.Width"
-#' #>  .. ..$ estimate: num 0.45
-#' #> $ Speciesversicolor             :List of 1
-#' #>  ..$ :List of 3
-#' #>  .. ..$ term     : chr "Species"
-#' #>  .. ..$ subscript: chr "versicolor"
-#' #>  .. ..$ estimate : num -1.05
-#' #> $ Speciesvirginica              :List of 1
-#' #>  ..$ :List of 3
-#' #>  .. ..$ term     : chr "Species"
-#' #>  .. ..$ subscript: chr "virginica"
-#' #>  .. ..$ estimate : num -2.62
-#' #> $ Petal.Length                  :List of 1
-#' #>  ..$ :List of 2
-#' #>  .. ..$ term    : chr "Petal.Length"
-#' #>  .. ..$ estimate: num 0.368
-#' #> $ Speciesversicolor:Petal.Length:List of 2
-#' #>  ..$ :List of 3
-#' #>  .. ..$ term     : chr "Species"
-#' #>  .. ..$ subscript: chr "versicolor"
-#' #>  .. ..$ estimate : num 0.292
-#' #>  ..$ :List of 2
-#' #>  .. ..$ term    : chr "Petal.Length"
-#' #>  .. ..$ estimate: num 0.292
-#' #> $ Speciesvirginica:Petal.Length :List of 2
-#' #>  ..$ :List of 3
-#' #>  .. ..$ term     : chr "Species"
-#' #>  .. ..$ subscript: chr "virginica"
-#' #>  .. ..$ estimate : num 0.523
-#' #>  ..$ :List of 2
-#' #>  .. ..$ term    : chr "Petal.Length"
-#' #>  .. ..$ estimate: num 0.523
-#' }
-extract_rhs <- function(model) {
-  # Extract RHS from formula
-  formula_rhs <- labels(terms(formula(model)))  # RHS in formula
-
-  # Extract unique terms from formula (no interactions)
-  formula_rhs_terms <- formula_rhs[!grepl(":", formula_rhs)]
-
-  # Extract coefficient names and values from model
-  full_rhs <- broom::tidy(model, quick = TRUE)
-
-  # Split interactions split into character vectors
-  full_rhs$split <- strsplit(full_rhs$term, ":")
-
-  # Loop through the full_rhs data frame and build a list of all model
-  # estimates, terms, subscripts, and interactions
-  rhs <- mapply(function(eq_term, eq_estimate) {
-    sapply(eq_term, function(single_term) {
-      # Check if an overarching term (e.g. "Species") is at the beginning of an
-      # existing term (e.g. "Speciesversicolor"). If so, separate the combined
-      # term into term and subscript elements
-      extracted <- sapply(formula_rhs_terms, function(possible_term) {
-        if (grepl(paste0("^", possible_term, "."), single_term)) {
-          list(term = possible_term,
-               subscript = gsub(possible_term, "", single_term),
-               estimate = eq_estimate)
-        }
-      }, USE.NAMES = FALSE)
-
-      # Remove all NULLs from extracted
-      extracted[sapply(extracted, is.null)] <- NULL
-
-      # Return extracted pieces
-      if (length(extracted) == 0) {
-        list(list(term = single_term,
-                  estimate = eq_estimate))
-      } else {
-        list(extracted[[1]])
-      }
-    }, USE.NAMES = FALSE)
-  }, full_rhs$split, full_rhs$estimate, SIMPLIFY = FALSE)
-
-  names(rhs) <- full_rhs$term
-
-  return(rhs)
-}
-
-
-#' TeXify an equation term
-#'
-#' Prepare an equation term for TeX, wrapping the text with \code{\\text{}}
-#' if necessary
-#'
-#' @keywords internal
-#'
-#' @param term A character string to TeXify
-#' @param ital_vars Passed from \code{extract_eq}
-#'
-#' @return A character string
-
-texify_term <- function(term, ital_vars) {
-  if (ital_vars) {
-    out <- term
-  } else {
-    out <- paste0("\\text{", term, "}")
-  }
-
-  return(out)
-}
-
-
-#' Build a complete TeX equation
-#'
-#' Combine the left-hand and right-hand sides of a model, wrap them with TeX
-#' commands, and combine them into a single equation
-#'
-#' @keywords internal
-#'
-#' @param lhs Left-hand side of the equation; character; comes from
-#'   \code{extract_lhs}
-#' @param rhs Right-hand side of the equation; list with nested elements; comes
-#'   from \code{extract_rhs}
-#' @param ital_vars Passed from \code{extract_eq}
-#' @param use_coefs Passed from \code{extract_eq}
-#'
-#' @return A character string
-#'
-build_tex <- function(lhs, rhs, ital_vars = ital_vars, use_coefs = use_coefs) {
-
-  lhs <- texify_term(lhs, ital_vars)
-
-  rhs_no_intercept <- rhs[!grepl("(Intercept)", rhs)]
-
-  # Convert each equation element to TeX, adding subscripts and \text{}s where needed
-  texified_terms <- sapply(rhs_no_intercept, function(eq_term) {
-    sapply(eq_term, function(term_elements) {
-
-      if (exists("subscript", where = term_elements)) {
-        out <- paste0(texify_term(term_elements[["term"]], ital_vars = ital_vars),
-                      "_{",
-                      texify_term(term_elements[["subscript"]], ital_vars = ital_vars),
-                      "}")
-      } else {
-        out <- texify_term(term_elements[["term"]], ital_vars = ital_vars)
-      }
-
-      out
+    # Split all the RHS terms into groups of length terms_per_line
+    rhs_groups <- lapply(eq_raw$rhs, function(x) {
+      split(x, ceiling(seq_along(x) / terms_per_line))
     })
-  })
 
-  # If any of the texified terms are length > 1, they're interaction terms and
-  # need to be joined by \times
-  with_interactions <- sapply(texified_terms, function(x) {
-    paste(x, collapse = " \\times ")
-  })
+    # Collapse the terms with + within each group
+    rhs_groups_collapsed <- lapply(rhs_groups, function(x) {
+      vapply(x, paste0, collapse = " + ", FUN.VALUE = character(1))
+    })
 
-  # Build a list of equation coefficients, either \beta_{i} or the actual value
-  if (use_coefs) {
-    coef_estimates <- sapply(rhs_no_intercept, function(x) x[[1]][["estimate"]])
-    coefs <- round(coef_estimates, 2)
-
-    intercept_raw <- rhs[grepl("(Intercept)", rhs)][[1]][[1]][["estimate"]]
-    intercept <- paste0(round(intercept_raw, 2), " + ")
+    # Collapse the collapsed groups with the line ending (trailing or leading +)
+    rhs_combined <- lapply(rhs_groups_collapsed, function(x) {
+      paste(x, collapse = line_end)
+    })
   } else {
-    # Create vector of subscripted betas
-    coefs <- paste0("\\beta_{", seq_along(with_interactions), "}")
-
-    intercept <- "\\alpha + "
+    rhs_combined <- lapply(eq_raw$rhs, function(x) {
+      paste(x, collapse = " + ")
+    })
   }
 
-  # Add betas or coefs to terms and concatenate with +s
-  with_coefs <- paste0(coefs, " (", with_interactions, ")", collapse = " + ")
+  if (wrap | length(rhs_combined) > 1 | show_distribution) {
+    needs_align <- TRUE
+  } else {
+    needs_align <- FALSE
+  }
 
-  eq  <- paste0(lhs, " = ", intercept, with_coefs, " + \\epsilon")
+  # Combine RHS and LHS
+  eq <- Map(function(.lhs, .rhs) {
+    paste(.lhs, .rhs,
+          sep = ifelse(needs_align, " &= ", " = "))
+  },
+  .lhs = eq_raw$lhs,
+  .rhs = wrap_rhs(model, rhs_combined))
 
-  eq <- structure(eq,class = c('tex','character'))
+  if (use_coefs && fix_signs) {
+    eq <- lapply(eq, fix_coef_signs)
+  }
+
+  if (length(eq) > 1) {
+    eq <- paste(eq, collapse = " \\\\\n")
+  } else {
+    eq <- eq[[1]]
+  }
+
+  # Add environment finally, if wrapping or if there are multiple equations
+  # This comes later so that multiple equations don't get their own environments
+  if (needs_align) {
+    eq <- paste0("\\begin{", align_env, "}\n",
+                 eq,
+                 "\n\\end{", align_env, "}")
+  }
+
+  class(eq) <- c('equation', 'character')
 
   return(eq)
 }

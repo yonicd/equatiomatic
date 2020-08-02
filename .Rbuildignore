@@ -4,3 +4,12 @@
 ^LICENSE\.md$
 ^\.travis\.yml$
 ^CODE_OF_CONDUCT\.md$
+^docs$
+^img$
+^_pkgdown\.yml$
+^pkgdown$
+^\.github$
+^codecov\.yml$
+^doc$
+^Meta$
+^cran-comments\.md$

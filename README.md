@@ -1,39 +1,45 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# equatiomatic <img src="tools/logo.png" align="right"/>
+# equatiomatic <img src="man/figures/logo.png" align="right"/>
 
 <!-- badges: start -->
 
-[![Travis build
-status](https://travis-ci.org/datalorax/equatiomatic.svg?branch=master)](https://travis-ci.org/datalorax/equatiomatic)
-[![lifecycle](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
+[![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www.tidyverse.org/lifecycle/#maturing)
+
 [![Covrpage
-Summary](https://img.shields.io/badge/covrpage-Last_Build_2019_05_31-brightgreen.svg)](https://tinyurl.com/y43gpto4)
+Summary](https://img.shields.io/badge/covrpage-Last_Build_2020_08_02-red.svg)](https://tinyurl.com/y43gpto4)
+<!-- [![codecov](https://codecov.io/gh/datalorax/equatiomatic/branch/master/graph/badge.svg)](https://codecov.io/gh/datalorax/equatiomatic) -->
+[![R build
+status](https://github.com/datalorax/equatiomatic/workflows/R-CMD-check/badge.svg)](https://github.com/datalorax/equatiomatic/actions)
+[![Codecov test
+coverage](https://codecov.io/gh/datalorax/equatiomatic/branch/master/graph/badge.svg)](https://codecov.io/gh/datalorax/equatiomatic?branch=master)
 <!-- badges: end -->
 
 The goal of **equatiomatic** is to reduce the pain associated with
-writing LaTeX code from a fitted model. In the future, the package will
-support any model supported by
+writing LaTeX code from a fitted model. In the future, the package aims
+to support any model supported by
 [**broom**](https://cran.r-project.org/package=broom); so far it has
-only been tested with `lm` and `glm` models.
+only been tested with `lm` and `glm` models and, at present, only
+supports binomial `glm` models (i.e., not ordinal or multinomial
+models).
 
 ## Installation
 
-equatiomatic is not yet on CRAN. Install the dev version from GitHub
-with
+equatiomatic is not yet on CRAN. Install the development version from
+GitHub with
 
 ``` r
 remotes::install_github("datalorax/equatiomatic")
 ```
 
-## Examples
+## Basic usage
 
-![](man/figures/equatiomatic.gif)
+![](https://github.com/datalorax/equatiomatic/raw/master/img/equatiomatic.gif)
 
 The gif above shows the basic functionality.
 
-In non-gif form:
+To convert a model to LaTeX, feed a model object to `extract_eq()`:
 
 ``` r
 library(equatiomatic)
@@ -44,140 +50,324 @@ mod1 <- lm(mpg ~ cyl + disp, mtcars)
 # Give the results to extract_eq
 extract_eq(mod1)
 #> $$
-#>   \text{mpg} = \alpha + \beta_{1} (\text{cyl}) + \beta_{2} (\text{disp}) + \epsilon
+#> \operatorname{mpg} = \alpha + \beta_{1}(\operatorname{cyl}) + \beta_{2}(\operatorname{disp}) + \epsilon
 #> $$
 ```
 
-Including the above in an R Markdown document with `results = "asis"`
-will render the equation to look like the below.
+<img src="man/figures/README-example-basic-preview-1.png" width="100%" />
 
-![](man/figures/eq1.png)
-
-Alternatively, you can run the code interactively, copy/paste the
-equation to where you want it in your doc, and make any edits you’d
-like. There is also the optional `preview` argument that will allow you
-to see what the equations look like before you have them rendered.
-
-``` r
-extract_eq(mod1, preview = TRUE)
-```
-
-and it will show up in your RStudio view pane like below.
-
-![](man/figures/preview.png)
-
-You can also request it return the actual coefficients
-
-``` r
-extract_eq(mod1, use_coefs = TRUE)
-#> $$
-#>   \text{mpg} = 34.66 + -1.59 (\text{cyl}) + -0.02 (\text{disp}) + \epsilon
-#> $$
-```
-
-![](man/figures/eq2.png)
-
-It can also handle shortcut syntax.
+The model can be built in any standard way—it can handle shortcut
+syntax:
 
 ``` r
 mod2 <- lm(mpg ~ ., mtcars)
 extract_eq(mod2)
 #> $$
-#>   \text{mpg} = \alpha + \beta_{1} (\text{cyl}) + \beta_{2} (\text{disp}) + \beta_{3} (\text{hp}) + \beta_{4} (\text{drat}) + \beta_{5} (\text{wt}) + \beta_{6} (\text{qsec}) + \beta_{7} (\text{vs}) + \beta_{8} (\text{am}) + \beta_{9} (\text{gear}) + \beta_{10} (\text{carb}) + \epsilon
+#> \operatorname{mpg} = \alpha + \beta_{1}(\operatorname{cyl}) + \beta_{2}(\operatorname{disp}) + \beta_{3}(\operatorname{hp}) + \beta_{4}(\operatorname{drat}) + \beta_{5}(\operatorname{wt}) + \beta_{6}(\operatorname{qsec}) + \beta_{7}(\operatorname{vs}) + \beta_{8}(\operatorname{am}) + \beta_{9}(\operatorname{gear}) + \beta_{10}(\operatorname{carb}) + \epsilon
 #> $$
 ```
 
-![](man/figures/eq3.png)
+<img src="man/figures/README-example-shortcut-preview-1.png" width="100%" />
 
-For categorical variables, it will place the levels of the variables as
-subscripts.
+When using categorical variables, it will include the levels of the
+variables as subscripts:
 
 ``` r
-mod3 <- lm(Sepal.Length ~ Sepal.Width + Species, iris)
+library(palmerpenguins)
+
+mod3 <- lm(body_mass_g ~ bill_length_mm + species, penguins)
 extract_eq(mod3)
 #> $$
-#>   \text{Sepal.Length} = \alpha + \beta_{1} (\text{Sepal.Width}) + \beta_{2} (\text{Species}_{\text{versicolor}}) + \beta_{3} (\text{Species}_{\text{virginica}}) + \epsilon
+#> \operatorname{body\_mass\_g} = \alpha + \beta_{1}(\operatorname{bill\_length\_mm}) + \beta_{2}(\operatorname{species}_{\operatorname{Chinstrap}}) + \beta_{3}(\operatorname{species}_{\operatorname{Gentoo}}) + \epsilon
 #> $$
 ```
 
-![](man/figures/eq4.png)
+<img src="man/figures/README-example-categorical-preview-1.png" width="100%" />
 
-It preserves the order the variables are supplied in the formula.
+It helpfully preserves the order the variables are supplied in the
+formula:
 
 ``` r
 set.seed(8675309)
 d <- data.frame(cat1 = rep(letters[1:3], 100),
-               cat2 = rep(LETTERS[1:3], each = 100),
-               cont1 = rnorm(300, 100, 1),
-               cont2 = rnorm(300, 50, 5),
-               out   = rnorm(300, 10, 0.5))
+                cat2 = rep(LETTERS[1:3], each = 100),
+                cont1 = rnorm(300, 100, 1),
+                cont2 = rnorm(300, 50, 5),
+                out   = rnorm(300, 10, 0.5))
 mod4 <- lm(out ~ cont1 + cat2 + cont2 + cat1, d)
 extract_eq(mod4)
 #> $$
-#>   \text{out} = \alpha + \beta_{1} (\text{cont1}) + \beta_{2} (\text{cat2}_{\text{B}}) + \beta_{3} (\text{cat2}_{\text{C}}) + \beta_{4} (\text{cont2}) + \beta_{5} (\text{cat1}_{\text{b}}) + \beta_{6} (\text{cat1}_{\text{c}}) + \epsilon
+#> \operatorname{out} = \alpha + \beta_{1}(\operatorname{cont1}) + \beta_{2}(\operatorname{cat2}_{\operatorname{B}}) + \beta_{3}(\operatorname{cat2}_{\operatorname{C}}) + \beta_{4}(\operatorname{cont2}) + \beta_{5}(\operatorname{cat1}_{\operatorname{b}}) + \beta_{6}(\operatorname{cat1}_{\operatorname{c}}) + \epsilon
 #> $$
 ```
 
-![](man/figures/eq5.png)
+<img src="man/figures/README-example-preserve-order-preview-1.png" width="100%" />
 
-You can wrap the equations at a specified width, which defaults to 80.
+## Appearance
+
+You can wrap the equations so that a specified number of terms appear on
+the right-hand side of the equation using `terms_per_line` (defaults to
+4):
 
 ``` r
-print(extract_eq(mod4),width=80)
+extract_eq(mod2, wrap = TRUE)
 #> $$
-#>   \text{out} &= \alpha + \beta_{1} (\text{cont1}) + \beta_{2} \\
-#>   & (\text{cat2}_{\text{B}}) + \beta_{3} (\text{cat2}_{\text{C}}) + \beta_{4} \\
-#>   & (\text{cont2}) + \beta_{5} (\text{cat1}_{\text{b}}) + \beta_{6} \\
-#>   & (\text{cat1}_{\text{c}}) + \epsilon
+#> \begin{aligned}
+#> \operatorname{mpg} &= \alpha + \beta_{1}(\operatorname{cyl}) + \beta_{2}(\operatorname{disp}) + \beta_{3}(\operatorname{hp})\ + \\
+#> &\quad \beta_{4}(\operatorname{drat}) + \beta_{5}(\operatorname{wt}) + \beta_{6}(\operatorname{qsec}) + \beta_{7}(\operatorname{vs})\ + \\
+#> &\quad \beta_{8}(\operatorname{am}) + \beta_{9}(\operatorname{gear}) + \beta_{10}(\operatorname{carb}) + \epsilon
+#> \end{aligned}
 #> $$
 ```
 
-![](man/figures/eq6.png)
-
-And you can optionally have the variables themselves be italicized.
+<img src="man/figures/README-example-wrap-preview-1.png" width="100%" />
 
 ``` r
-print(extract_eq(mod4, ital_vars = TRUE),width = 80)
+extract_eq(mod2, wrap = TRUE, terms_per_line = 6)
 #> $$
-#>   out &= \alpha + \beta_{1} (cont1) + \beta_{2} (cat2_{B}) + \beta_{3} (cat2_{C}) \\
-#>   & + \beta_{4} (cont2) + \beta_{5} (cat1_{b}) + \beta_{6} (cat1_{c}) + \\
-#>   & \epsilon
+#> \begin{aligned}
+#> \operatorname{mpg} &= \alpha + \beta_{1}(\operatorname{cyl}) + \beta_{2}(\operatorname{disp}) + \beta_{3}(\operatorname{hp}) + \beta_{4}(\operatorname{drat}) + \beta_{5}(\operatorname{wt})\ + \\
+#> &\quad \beta_{6}(\operatorname{qsec}) + \beta_{7}(\operatorname{vs}) + \beta_{8}(\operatorname{am}) + \beta_{9}(\operatorname{gear}) + \beta_{10}(\operatorname{carb}) + \epsilon
+#> \end{aligned}
 #> $$
 ```
 
-![](man/figures/eq7.png)
+<img src="man/figures/README-example-wrap-longer-preview-1.png" width="100%" />
 
-You’re not limited to just `lm` models\! You should be able to use any
-model supported by
-[**broom**](https://cran.r-project.org/package=broom), like logistic
-regression with `glm()`:
+When wrapping, you can change whether the lines end with trailing math
+operators like `+` (the default), or if they should begin with them
+using `operator_location = "end"` or `operator_location = "start"`:
 
 ``` r
-set.seed(8675309)
-d <- data.frame(out = sample(0:1, 100, replace = TRUE),
-                cat1 = rep(letters[1:3], 100),
-                cat2 = rep(LETTERS[1:3], each = 100),
-                cont1 = rnorm(300, 100, 1),
-                cont2 = rnorm(300, 50, 5))
-mod5 <- glm(out ~ ., data = d, family = binomial(link = "logit"))
-print(extract_eq(mod5),width=80)
+extract_eq(mod2, wrap = TRUE, terms_per_line = 4, operator_location = "start")
 #> $$
-#>   \text{out} &= \alpha + \beta_{1} (\text{cat1}_{\text{b}}) + \beta_{2} \\
-#>   & (\text{cat1}_{\text{c}}) + \beta_{3} (\text{cat2}_{\text{B}}) + \beta_{4} \\
-#>   & (\text{cat2}_{\text{C}}) + \beta_{5} (\text{cont1}) + \beta_{6} \\
-#>   & (\text{cont2}) + \epsilon
+#> \begin{aligned}
+#> \operatorname{mpg} &= \alpha + \beta_{1}(\operatorname{cyl}) + \beta_{2}(\operatorname{disp}) + \beta_{3}(\operatorname{hp})\\
+#> &\quad + \beta_{4}(\operatorname{drat}) + \beta_{5}(\operatorname{wt}) + \beta_{6}(\operatorname{qsec}) + \beta_{7}(\operatorname{vs})\\
+#> &\quad + \beta_{8}(\operatorname{am}) + \beta_{9}(\operatorname{gear}) + \beta_{10}(\operatorname{carb}) + \epsilon
+#> \end{aligned}
 #> $$
 ```
 
-![](man/figures/eq8.png)
+<img src="man/figures/README-example-wrap-longer-location-preview-1.png" width="100%" />
+
+By default, all text in the equation is wrapped in `\operatorname{}`.
+You can optionally have the variables themselves be italicized (i.e. not
+be wrapped in `\operatorname{}`) with `ital_vars = TRUE`:
+
+``` r
+extract_eq(mod2, wrap = TRUE, ital_vars = TRUE)
+#> $$
+#> \begin{aligned}
+#> mpg &= \alpha + \beta_{1}(cyl) + \beta_{2}(disp) + \beta_{3}(hp)\ + \\
+#> &\quad \beta_{4}(drat) + \beta_{5}(wt) + \beta_{6}(qsec) + \beta_{7}(vs)\ + \\
+#> &\quad \beta_{8}(am) + \beta_{9}(gear) + \beta_{10}(carb) + \epsilon
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-italics-preview-1.png" width="100%" />
+
+## R Markdown and previewing
+
+If you include `extract_eq()` in an R Markdown chunk with
+`results="asis"`, **knitr** will render the equation.
+
+Alternatively, you can run the code interactively, copy/paste the
+equation to where you want it in your document, and make any edits you’d
+like.
+
+You can use the `tex_preview()` function from the
+[**texPreview**](https://cran.r-project.org/package=texPreview) package
+to preview the equation in RStudio:
+
+``` r
+tex_preview(extract_eq(mod1))
+```
+
+![](man/figures/preview1.png)
+
+Both `extract_eq()` and `tex_preview()` work with **magrittr** pipes, so
+you can do something like this:
+
+``` r
+library(magrittr)  # or library(tidyverse) or any other package that exports %>%
+
+extract_eq(mod1) %>% 
+  tex_preview()
+```
+
+## Extra options
+
+There are several extra options you can enable with additional arguments
+to `extract_eq()`
+
+### Actual coefficients
+
+You can return actual numeric coefficients instead of Greek letters with
+`use_coefs = TRUE`:
+
+``` r
+extract_eq(mod1, use_coefs = TRUE)
+#> $$
+#> \operatorname{mpg} = 34.66 - 1.59(\operatorname{cyl}) - 0.02(\operatorname{disp}) + \epsilon
+#> $$
+```
+
+<img src="man/figures/README-use-coefs-preview-1.png" width="100%" />
+
+By default, it will remove doubled operators like “+ -”, but you can
+keep those in (which is often useful for teaching) with `fix_signs =
+FALSE`:
+
+``` r
+extract_eq(mod1, use_coefs = TRUE, fix_signs = FALSE)
+#> $$
+#> \operatorname{mpg} = 34.66 + -1.59(\operatorname{cyl}) + -0.02(\operatorname{disp}) + \epsilon
+#> $$
+```
+
+<img src="man/figures/README-fix-signs-preview-1.png" width="100%" />
+
+This works in longer wrapped equations:
+
+``` r
+extract_eq(mod2, wrap = TRUE, terms_per_line = 3,
+           use_coefs = TRUE, fix_signs = FALSE)
+#> $$
+#> \begin{aligned}
+#> \operatorname{mpg} &= 12.3 + -0.11(\operatorname{cyl}) + 0.01(\operatorname{disp})\ + \\
+#> &\quad -0.02(\operatorname{hp}) + 0.79(\operatorname{drat}) + -3.72(\operatorname{wt})\ + \\
+#> &\quad 0.82(\operatorname{qsec}) + 0.32(\operatorname{vs}) + 2.52(\operatorname{am})\ + \\
+#> &\quad 0.66(\operatorname{gear}) + -0.2(\operatorname{carb}) + \epsilon
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-fix-signs-long-preview-1.png" width="100%" />
+
+## Beyond `lm()`
+
+You’re not limited to just `lm` models\! **equatiomatic** supports many
+other models, including logistic regression, probit regression, and
+ordered logistic regression (with `MASS::polr()`).
+
+### Logistic regression with `glm()`
+
+``` r
+library(palmerpenguins)
+
+model_logit <- glm(sex ~ bill_length_mm + species, 
+                   data = penguins, family = binomial(link = "logit"))
+extract_eq(model_logit, wrap = TRUE, terms_per_line = 3)
+#> $$
+#> \begin{aligned}
+#> \log\left[ \frac { P( \operatorname{sex} = \operatorname{male} ) }{ 1 - P( \operatorname{sex} = \operatorname{male} ) } \right] &= \alpha + \beta_{1}(\operatorname{bill\_length\_mm}) + \beta_{2}(\operatorname{species}_{\operatorname{Chinstrap}})\ + \\
+#> &\quad \beta_{3}(\operatorname{species}_{\operatorname{Gentoo}}) + \epsilon
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-logit-preview-1.png" width="100%" />
+
+### Probit regression with `glm()`
+
+``` r
+model_probit <- glm(sex ~ bill_length_mm + species, 
+                    data = penguins, family = binomial(link = "probit"))
+extract_eq(model_probit, wrap = TRUE, terms_per_line = 3)
+#> $$
+#> \begin{aligned}
+#> P(\operatorname{sex} = \operatorname{male}) &= \Phi[\alpha + \beta_{1}(\operatorname{bill\_length\_mm}) + \beta_{2}(\operatorname{species}_{\operatorname{Chinstrap}})\ + \\
+#> &\qquad\ \beta_{3}(\operatorname{species}_{\operatorname{Gentoo}}) + \epsilon]
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-probit-preview-1.png" width="100%" />
+
+### Ordered logistic regression with `MASS::polr()`
+
+``` r
+set.seed(1234)
+df <- data.frame(outcome = factor(rep(LETTERS[1:3], 100),
+                                  levels = LETTERS[1:3],
+                                  ordered = TRUE),
+                 continuous_1 = rnorm(300, 100, 1),
+                 continuous_2 = rnorm(300, 50, 5))
+
+model_ologit <- MASS::polr(outcome ~ continuous_1 + continuous_2, 
+                           data = df, Hess = TRUE, method = "logistic")
+model_oprobit <- MASS::polr(outcome ~ continuous_1 + continuous_2, 
+                            data = df, Hess = TRUE, method = "probit")
+
+extract_eq(model_ologit, wrap = TRUE)
+#> $$
+#> \begin{aligned}
+#> \log\left[ \frac { P( \operatorname{A} \geq \operatorname{B} ) }{ 1 - P( \operatorname{A} \geq \operatorname{B} ) } \right] &= \alpha_{1} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon \\
+#> \log\left[ \frac { P( \operatorname{B} \geq \operatorname{C} ) }{ 1 - P( \operatorname{B} \geq \operatorname{C} ) } \right] &= \alpha_{2} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-ologit-preview-1.png" width="100%" />
+
+``` r
+extract_eq(model_oprobit, wrap = TRUE)
+#> $$
+#> \begin{aligned}
+#> P(\operatorname{A} \geq \operatorname{B}) &= \Phi[\alpha_{1} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon] \\
+#> P(\operatorname{B} \geq \operatorname{C}) &= \Phi[\alpha_{2} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon]
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-polr-probit-preview-1.png" width="100%" />
+
+### Ordered regression (logit and probit) with `ordinal::clm()`
+
+``` r
+set.seed(1234)
+df <- data.frame(outcome = factor(rep(LETTERS[1:3], 100),
+                                  levels = LETTERS[1:3],
+                                  ordered = TRUE),
+                 continuous_1 = rnorm(300, 1, 1),
+                 continuous_2 = rnorm(300, 5, 5))
+
+model_ologit <- ordinal::clm(outcome ~ continuous_1 + continuous_2, 
+                             data = df, link = "logit")
+model_oprobit <- ordinal::clm(outcome ~ continuous_1 + continuous_2, 
+                              data = df, link = "probit")
+
+extract_eq(model_ologit, wrap = TRUE)
+#> $$
+#> \begin{aligned}
+#> \log\left[ \frac { P( \operatorname{A} \geq \operatorname{B} ) }{ 1 - P( \operatorname{A} \geq \operatorname{B} ) } \right] &= \alpha_{1} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon \\
+#> \log\left[ \frac { P( \operatorname{B} \geq \operatorname{C} ) }{ 1 - P( \operatorname{B} \geq \operatorname{C} ) } \right] &= \alpha_{2} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-clm-ologit-preview-1.png" width="100%" />
+
+``` r
+extract_eq(model_oprobit, wrap = TRUE)
+#> $$
+#> \begin{aligned}
+#> P(\operatorname{A} \geq \operatorname{B}) &= \Phi[\alpha_{1} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon] \\
+#> P(\operatorname{B} \geq \operatorname{C}) &= \Phi[\alpha_{2} + \beta_{1}(\operatorname{continuous\_1}) + \beta_{2}(\operatorname{continuous\_2}) + \epsilon]
+#> \end{aligned}
+#> $$
+```
+
+<img src="man/figures/README-example-clm-oprobit-preview-1.png" width="100%" />
 
 ## Extension
 
 This project is brand new. If you would like to contribute, we’d love
 your help\! We are particularly interested in extending to more models.
-At present, we have only tested `lm` and `glm`, but hope to support any
-model supported by [**broom**](https://cran.r-project.org/package=broom)
-in the future.
+We hope to support any model supported by
+[**broom**](https://cran.r-project.org/package=broom) in the future.
 
 ## Code of Conduct
 
